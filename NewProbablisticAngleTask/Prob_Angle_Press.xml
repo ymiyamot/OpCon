@@ -1,0 +1,151 @@
+﻿<StateMachine xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="RatControl.xsd" ID="0">
+  <AIThresholds>
+    <AIChannelThresholds ChannelNum="0">
+      <AIThreshold ID="0" Direction="Decreasing" Name="J_Press">2.0</AIThreshold>
+      <AIThreshold Direction="Increasing" ID="1" Name="J_Release">2.0</AIThreshold>
+    </AIChannelThresholds>
+  </AIThresholds>
+  <AODatas>
+    <AOData ID="0">
+      <AOChannelData ChannelNum="0">
+        <PureTone Amplitude="1" Duration="250" Frequency="5000" />
+      </AOChannelData>
+    </AOData>
+  </AODatas>
+  <EventPlugins>
+    <AsheshPlugins.UpdateJoystickPosition_xyFeature ID="0" BufferSize="10" VelocityThreshold="0.005" AIThreshold="2.0" Origin_x="2.53" Origin_y="2.13" Feature="angle">
+      <Events>
+        <Event ID="0" Name="Update Joystick Position XY Feature" />
+      </Events>
+    </AsheshPlugins.UpdateJoystickPosition_xyFeature>
+  </EventPlugins>
+  <State ID="0" Name="Start">
+    <SubStateMachines>
+      <StateMachine ID="1">
+        <State ID="0" Name="Stop Save">
+          <SaveTriggers>
+            <SaveTrigger Source="AnalogInput" ChannelNum="0" ID="0" TriggerType="Stop" />
+            <SaveTrigger Source="AnalogInput" ChannelNum="1" ID="1" TriggerType="Stop" />
+            <SaveTrigger Source="Video" ChannelNum="0" ID="2" TriggerType="Stop" />
+          </SaveTriggers>
+          <AITransitions>
+            <AITransition ChannelNum="0" ThresholdNum="0">
+              1
+            </AITransition>
+          </AITransitions>
+        </State>
+        <State ID="1" Name="Start Save">
+          <SaveTriggers>
+            <SaveTrigger Source="AnalogInput" ChannelNum="0" ID="0" TriggerType="StartContinuous" NumPreviousSamples="2000" />
+            <SaveTrigger Source="AnalogInput" ChannelNum="1" ID="1" TriggerType="StartContinuous" NumPreviousSamples="2000" />
+            <SaveTrigger Source="Video" ChannelNum="0" ID="2" TriggerType="StartContinuous" NumPreviousSamples="60" />
+          </SaveTriggers>
+          <AITransitions>
+            <AITransition ChannelNum="0" ThresholdNum="0">
+              1
+            </AITransition>
+            <AITransition ChannelNum="0" ThresholdNum="1">
+              2
+            </AITransition>
+          </AITransitions>
+          <Timer TimerTransition="0">
+            <FixedTimer Interval="5000" />
+          </Timer>
+        </State>
+        <State ID="2" Name="Saving">
+          <AITransitions>
+            <AITransition ChannelNum="0" ThresholdNum="0">
+              1
+            </AITransition>
+          </AITransitions>
+          <Timer TimerTransition="0">
+            <FixedTimer Interval="2000" />
+          </Timer>
+        </State>
+      </StateMachine>
+    </SubStateMachines>
+    <Plugins>
+      <AsheshPlugins.ResetminDist ID="0" />
+    </Plugins>
+    <AITransitions>
+      <AITransition ChannelNum="0" ThresholdNum="0">1</AITransition>
+    </AITransitions>
+    <Timer TimerTransition="0">
+      <FixedTimer Interval="5000" />
+    </Timer>
+  </State>
+  <State ID="1" Name="Joystick pressed">
+    <AITransitions>
+      <AITransition ChannelNum="0" ThresholdNum="1">2</AITransition>
+    </AITransitions>
+    <Timer TimerTransition="2">
+      <FixedTimer Interval="500" />
+    </Timer>
+  </State>
+  <State ID="2" Name="Joystick released">
+    <Plugins>
+      <AsheshPlugins.SetFeatureRewardProb ID="0">
+        <Tone ID="3" SubFSM="0" />
+        <Evaluation ID="2" SubFSM="0" />
+        <Failure ID="6" SubFSM="0" />
+        <Reward ID ="5" SubFSM="0" MaxPulses="4" MinPulses="4"  />
+        <Parameters MinDist="0.6" Upper="0.4" Lower="0.15" Target="0.3"/>
+        <Conditions NormalTrials="100" ProbTrials="100" RandomReward ="True" RewardProbability="0.2"/>
+        <ScriptParam TrialBlock ="0" Order0="0" Order1="1" Order2="2"/>
+      </AsheshPlugins.SetFeatureRewardProb>
+    </Plugins>
+    <Timer TimerTransition="6">
+      <FixedTimer Interval="0" />
+    </Timer>
+  </State>
+  <State ID="3" Name="Play Reward tone">
+    <Plugins>
+      <AsheshPlugins.ResetminDist ID="0" />
+    </Plugins>
+    <AOStarts>
+      <AOStart Continuous="false" AODataNum="0" />
+    </AOStarts>
+    <DITransitions>
+      <DITransition ChannelNum="0" NewState="1">4</DITransition>
+      <DITransition ChannelNum="1" NewState="1">5</DITransition>
+    </DITransitions>
+    <Timer TimerTransition="0">
+      <FixedTimer Interval="5000" />
+    </Timer>
+  </State>
+  <State ID="4" Name="Successful Nosepoke">
+    <DITransitions>
+      <DITransition ChannelNum="1" NewState="1">5</DITransition>
+    </DITransitions>
+    <Timer TimerTransition="5">
+      <FixedTimer Interval="500" />
+    </Timer>
+  </State>
+  <State ID="5" Name="Water">
+    <Pulses>
+      <PulseTrain ChannelNum="1" NumPulses="2" Width="7" Frequency="10" />
+    </Pulses>
+    <Timer TimerTransition="0">
+      <FixedTimer Interval="0" />
+    </Timer>
+  </State>
+  <State ID="6" Name="Unsuccessful Nosepoke">
+    <DITransitions>
+      <DITransition ChannelNum="0" NewState="1">0</DITransition>
+      <DITransition ChannelNum="1" NewState="1">0</DITransition>
+    </DITransitions>
+    <AITransitions>
+      <AITransition ChannelNum="0" ThresholdNum="0">
+        7
+      </AITransition>
+    </AITransitions>
+    <Timer TimerTransition="0">
+      <FixedTimer Interval="5000" />
+    </Timer>
+  </State>
+  <State ID="7" Name="Extra-trial joystick press">
+    <Timer TimerTransition="6">
+      <FixedTimer Interval="0" />
+    </Timer>
+  </State>
+</StateMachine>
