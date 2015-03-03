@@ -8,13 +8,13 @@ using System.Threading;
 
 namespace AsheshPlugins
 {
-    public class SetFeatureReward : IEntryPlugin
+    public class SetFeatureRewardProb : IEntryPlugin
     {
         private int EvalStateID, EvalStateSubFSM;
         private int ToneStateID, ToneStateSubFSM;
         private int RewardStateID, RewardStateSubFSM;
         private int FailureStateID, FailureStateSubFSM;
-        private double RewardProb, MinDist;
+        private double MinDist;
         public int TrialHistory;
         private string VarMeasure;
         public double UB, T, LB;
@@ -73,21 +73,21 @@ namespace AsheshPlugins
                 RandOn = true;
                 if (RewardProb > rnd.NextDouble())
                 {
-                    numOfPulses = PastRewards[rnd.Next(PastRewardscount)];
-                    if (numOfPulses > 0)
+                    numofpulses = PastRewards[rnd.Next(PastRewardscount)];
+                    if (numofpulses > 0)
                     {
-                        BeforeState.timerTransition = toneStateID;
-                        RewardState.numPulses[0] = numOfPulses;
+                        BeforeState.timerTransition = ToneStateID;
+                        RewardState.numPulses[0] = numofpulses;
                     }
                     else
                     {
-                        numOfPulses = 0;
+                        numofpulses = 0;
                         BeforeState.timerTransition = FailureStateID;
                     }
                 }
                 else
                 {
-                    numOfPulses = 0;
+                    numofpulses = 0;
                     BeforeState.timerTransition = FailureStateID;
                 }
             }
@@ -117,7 +117,7 @@ namespace AsheshPlugins
                         // Record reward for random reward selection later in session
                         if (trialcount <= NormTrials)
                         {
-                            PastRewards[PastRewardscount] = numOfPulses;
+                            PastRewards[PastRewardscount] = numofpulses;
                             PastRewardscount++;
                         }
                     }

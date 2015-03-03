@@ -9,7 +9,7 @@ using RatControlEventDetails;
 
 namespace RatControlOp.Scripts
 {
-    public class ShapeXYPressingMovingTarget : EmptyScript
+    public class ShapeXYPressingMovingTargetProb : EmptyScript
     {
         // State Machine parameter names
         const string lowerString = "LowerBound";
@@ -40,6 +40,8 @@ namespace RatControlOp.Scripts
         private double TargetEdgeDist; // Distance from center (0) to maximum target displacement
         private double MinJumpDist; // Minimum jump distance for target
         private double BoundThreshJump; // Minimum distance between target and boundary for target jump
+        private int defNormTrials; // Default number of normal trials
+        private int defProbTrials; // Default number of probabilistic reward trials
 
         // Script Internal Params
         private bool SMStarted;
@@ -53,16 +55,17 @@ namespace RatControlOp.Scripts
         public double T;
 
         // Random reward parameters
-        private int NormTrials; // # trials for normal reward block
-        private int ProbTrials; // # trials for probabilistic reward block
-        private int BlockJitter; // # Actual Normal trials and probablistic trials will be +- this number
-        private double RewardProb1; // Reward Probability in block 1
-        private double RewardProb2; // Reward Probability in block 2
-        private double RewardProb3; // Reward Probability in block 3
-        private bool RandomReward; // Random reward on or off. If off, no max limit on trials per session
-        private int numBlocks;
+        public int NormTrials; // # trials for normal reward block
+        public int ProbTrials; // # trials for probabilistic reward block
+        public int BlockJitter; // # Actual Normal trials and probablistic trials will be +- this number
+        public double RewardProb1; // Reward Probability in block 1 (%)
+        public double RewardProb2; // Reward Probability in block 2 (%)
+        public double RewardProb3; // Reward Probability in block 3 (%)
+        public bool RandomReward; // Random reward on or off. If off, no max limit on trials per session
+        public int numBlocks;
         public int[] blockorder = new int[3];
         public double RewardProb;
+        public int trblock;
 
 
         public override void ParseParameters()
@@ -86,13 +89,13 @@ namespace RatControlOp.Scripts
 
             // inputs of the random reward scheme
             RandomReward = bool.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Random Reward?").Value);
-            NormTrials = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Normal Trials").Value);
-            ProbTrials = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Prob Trials").Value);
+            defNormTrials = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Normal Trials").Value);
+            defProbTrials = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Prob Trials").Value);
             BlockJitter = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Block Jitter").Value);
             RewardProb1 = double.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Reward Prob 1").Value);
             RewardProb2 = double.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Reward Prob 2").Value);
             RewardProb3 = double.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Reward Prob 3").Value);
-            numBlocks = double.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Blocks in Cycle").Value);
+            numBlocks = int.Parse(ScriptParameters.First(a => a.ScriptParameter.Name == "Blocks in Cycle").Value);
         }
 
         public override SMCompletionStatus IsComplete(out List<SMParameterValue> newParams)
@@ -140,21 +143,17 @@ namespace RatControlOp.Scripts
                         blockorder[2] = sql[lindex].param9;
                     }
 
+                    Random rnd = new Random();
+
                     // Initialize block numbers
                     if (trblock == 0)
                     {
-                      
-
                          // initialize block order
-                        Random rnd = new Random();
-                        int numBlocks = 8;
-                        int[] blockorder = new int[numBlocks];
                         double[] tmpOrder = new double[numBlocks];
                         int[] tmpVals = new int[numBlocks];
 
-
                         // initialize block order
-                        for (i = 0; i < numBlocks; i++)
+                        for (int i = 0; i < numBlocks; i++)
                         {
                             tmpOrder[i] = rnd.NextDouble();
                             tmpVals[i] = i;
@@ -171,74 +170,47 @@ namespace RatControlOp.Scripts
                             tmpString = tmpString + blockorder[i];
                             if (i < numBlocks - 1)
                             {
-                                tmpString = tmpString + ",";
+                                tmpString = tmpString + " ";
                             }
                         }
                         Trace.WriteLine(tmpString);
                     }
 
                     // Add some randomness to the number of normal and prob trials: +- 10
-                    NormTrials = defNormTrials + Math.round(2 * BlockJitter * rnd.NextDouble()) - BlockJitter;
-                    ProbTrials = defProbTrials + Math.round(2 * BlockJitter * rnd.NextDouble()) - BlockJitter;
+                    NormTrials = defNormTrials + (int)Math.Round(2 * BlockJitter * rnd.NextDouble()) - BlockJitter;
+                    ProbTrials = defProbTrials + (int)Math.Round(2 * BlockJitter * rnd.NextDouble()) - BlockJitter;
 
                     // Set reward probability, if the current block is one of the 3 reward blocks
                     if (blockorder[0] == trblock)
                     {
-                        RandomReward = 1;
-                        RewardProb = RewardProb1;
+                        RandomReward = true;
+                        RewardProb = RewardProb1/100;
                     }
                     else if (blockorder[1] == trblock)
                     {
-                        RandomReward = 1;
-                        RewardProb = RewardProb2;
+                        RandomReward = true;
+                        RewardProb = RewardProb2/100;
                     }
                     else if (blockorder[2] == trblock)
                     {
-                        RandomReward = 1;
-                        RewardProb = RewardProb3;
+                        RandomReward = true;
+                        RewardProb = RewardProb3/100;
                     }
                     else
                     {
-                        RandomReward = 0;
+                        RandomReward = false;
                         RewardProb = -1;
                     }
                     Trace.WriteLine("Reward Probability = " + RewardProb);
 
                     // Update trblock
-                    switch (trblock)
-                    {
-                        case (numBlocks - 1):
-                            trblock = 0;
-                            break;
-                        default:
-                            trblock++;
-                            break;
-                    }
-                    newParams = updateRandom();
-
-                    // Update script parameters
-                    /*
-                    if (defidcount[0] > 0)
-                    {
-                        if ((LB == 0) || (UB == 0))
-                        {
-                            newParams = updateRandom();
-                        }
-                        else
-                        {
-                            newParams = updateRandom();
-                        }
-                    }
+                    if (trblock == (numBlocks - 1))
+                        {trblock = 0;}
                     else
-                    {
-                        newParams = updateRandom();
-                    }
-                    */
-
-
+                        {trblock++;}
+                    
+                    
                     //////////////////////////////////
-
-
 
                     switch (status)
                     {
@@ -250,10 +222,7 @@ namespace RatControlOp.Scripts
                             }
                             else
                             {
-                                newParams = SMParameters.Select(a => new SMParameterValue { StateMachineParameter = a.StateMachineParameter, Value = a.Value }).ToList();
-                                newParams.First(a => a.StateMachineParameter.Name == lowerString).Value = Convert.ToString(LB);
-                                newParams.First(a => a.StateMachineParameter.Name == upperString).Value = Convert.ToString(UB);
-                                newParams.First(a => a.StateMachineParameter.Name == targetString).Value = Convert.ToString(T);
+                                newParams = updateSMParams();
                             }
                             break;
                         case Status.Easy:
@@ -261,17 +230,20 @@ namespace RatControlOp.Scripts
                             {
                                 newParams = useScriptParameters();
                             }
-                            newParams = changeBoundaries(exptIDEval, defIDEval, db);
-                            if ((UB - LB) / 2 < BoundThreshJump) // check for jump
+                            else
                             {
-                                Trace.WriteLine("Jumping Target");
-                                newParams = jumpTarget(exptIDEval, defIDEval, db);
                                 newParams = changeBoundaries(exptIDEval, defIDEval, db);
+                                if ((UB - LB) / 2 < BoundThreshJump) // check for jump
+                                {
+                                    Trace.WriteLine("Jumping Target");
+                                    jumpTarget(exptIDEval, defIDEval, db);
+                                    newParams = changeBoundaries(exptIDEval, defIDEval, db);
+                                }
+                                else // just easy
+                                {
+                                    Trace.WriteLine("Too Easy");
+                                }
                             }
-                            else // just easy
-                            {
-                                Trace.WriteLine("Too Easy");
-                             }
                             break;
                         case Status.Hard:
                             Trace.WriteLine("Too Hard");
@@ -279,9 +251,13 @@ namespace RatControlOp.Scripts
                             {
                                 newParams = useScriptParameters();
                             }
-                            newParams = changeBoundaries(exptIDEval, defIDEval, db);
+                            else
+                            {
+                                newParams = changeBoundaries(exptIDEval, defIDEval, db);
+                            }
                             break;
                         default:
+                            newParams = updateSMParams();
                             break;
                     }
 
@@ -297,10 +273,18 @@ namespace RatControlOp.Scripts
 
         private Status evaluatePerformance(int exptID, int defID, RatControlDataContext db)
         {
+            int? FirstRCEID = null;
+            int? LastRCEID = null;
+            db.GetFirstRCE(exptID, defID, ref FirstRCEID);
+            db.GetLastRCE(exptID, defID, ref LastRCEID);
+
             int numOfRewardedTrials;
             double percentRewarded;
             // number of trials in previous session
-            int numOfTrials = ScriptHelper.CountNumEntries(exptID, JSPressState, defID, JSPressSubFSM, db);
+            int[] query1 = db.ExecuteQuery<int>(@"SELECT RatEventsID AS param6 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND Details.value('(//SetRewardPluginDetails/@RandOn)[1]', 'bit') = 0", ExptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
+            int numOfTrials = query1.Count();
+            // int numOfTrials = ScriptHelper.CountNumEntries(exptID, JSPressState, defID, JSPressSubFSM, db);
+            
             Trace.WriteLine("Number of Trials: " + numOfTrials);
             
             // Evaluate number of trials and percentage
@@ -311,7 +295,10 @@ namespace RatControlOp.Scripts
             }
             else
             {
-                numOfRewardedTrials = ScriptHelper.CountNumEntries(exptID, RewardState, defID, RewardSubFSM, db);
+                int[] query2 = db.ExecuteQuery<int>(@"SELECT RatEventsID AS param6 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND Details.value('(//SetRewardPluginDetails/@RandOn)[1]', 'bit') = 0 AND Details.value('(//SetRewardPluginDetails/@Reward)[1]', 'int') > 0", ExptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
+                numOfRewardedTrials = query2.Count();
+
+                // numOfRewardedTrials = ScriptHelper.CountNumEntries(exptID, RewardState, defID, RewardSubFSM, db);
                 percentRewarded = (double)numOfRewardedTrials / (double)numOfTrials * 100;
                 Trace.WriteLine("Percentage Rewarded: " + percentRewarded + "%");
                 
@@ -332,22 +319,22 @@ namespace RatControlOp.Scripts
 
         private List<SMParameterValue> useScriptParameters()
         {
-            List<SMParameterValue> newParams;
-            newParams = SMParameters.Select(a => new SMParameterValue { StateMachineParameter = a.StateMachineParameter, Value = a.Value }).ToList();
-            newParams.First(a => a.StateMachineParameter.Name == lowerString).Value = Convert.ToString(Lower);
-            newParams.First(a => a.StateMachineParameter.Name == upperString).Value = Convert.ToString(Upper);
-            newParams.First(a => a.StateMachineParameter.Name == targetString).Value = Convert.ToString(Target);
-            LB= Lower;
+            LB = Lower;
             UB = Upper;
             T = Target;
+            List<SMParameterValue> newParams = updateSMParams();
             return newParams;
         }
-        private List<SMParameterValue> updateRandom()
+
+        private List<SMParameterValue> updateSMParams()
         {
             List<SMParameterValue> newParams;
             newParams = SMParameters.Select(a => new SMParameterValue { StateMachineParameter = a.StateMachineParameter, Value = a.Value }).ToList();
 
             // Update random reward parameters
+            newParams.First(a => a.StateMachineParameter.Name == lowerString).Value = Convert.ToString(LB);
+            newParams.First(a => a.StateMachineParameter.Name == upperString).Value = Convert.ToString(UB);
+            newParams.First(a => a.StateMachineParameter.Name == targetString).Value = Convert.ToString(T);
             newParams.First(a => a.StateMachineParameter.Name == RandomRewardstring).Value = Convert.ToString(RandomReward);
             newParams.First(a => a.StateMachineParameter.Name == normtrialstring).Value = Convert.ToString(NormTrials);
             newParams.First(a => a.StateMachineParameter.Name == probtrialstring).Value = Convert.ToString(ProbTrials);
@@ -358,6 +345,7 @@ namespace RatControlOp.Scripts
             newParams.First(a => a.StateMachineParameter.Name == RewardProbstring).Value = Convert.ToString(RewardProb);
             return newParams;
         }
+
         private List<SMParameterValue> changeBoundaries(int exptID, int defID, RatControlDataContext db)
         {
             int? FirstRCEID = null;
@@ -371,9 +359,9 @@ namespace RatControlOp.Scripts
             }
             else
             {
-                
-                var Features = db.ExecuteQuery<double?>(@"SELECT Details.value('(//SetRewardPluginDetails/@Feature)[1]', 'float') AS A1 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND EventType = 9 ORDER BY A1 DESC", exptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
-                var Completed = db.ExecuteQuery<int?>(@"SELECT Details.value('(//SetRewardPluginDetails/@Completed)[1]', 'int') AS A1 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND EventType = 9 ORDER BY A1 DESC", exptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
+
+                var Features = db.ExecuteQuery<double?>(@"SELECT Details.value('(//SetRewardPluginDetails/@Feature)[1]', 'float') AS A1 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND Details.value('(//SetRewardPluginDetails/@RandOn)[1]', 'bit') = 0 AND EventType = 9 ORDER BY A1 DESC", exptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
+                var Completed = db.ExecuteQuery<int?>(@"SELECT Details.value('(//SetRewardPluginDetails/@Completed)[1]', 'int') AS A1 FROM RatControlEvents WHERE ExptID = {0} AND RatEventsID >= {1} AND RatEventsID <= {2} AND Details.value('(//SetRewardPluginDetails/@RandOn)[1]', 'bit') = 0 AND EventType = 9 ORDER BY A1 DESC", exptID.ToString(), FirstRCEID.ToString(), LastRCEID.ToString()).ToArray();
 
                 int nevents = Features.Count();
 
@@ -407,15 +395,11 @@ namespace RatControlOp.Scripts
                 UB = T + w;
             }
             
-            List<SMParameterValue> newParams;
-            newParams = SMParameters.Select(a => new SMParameterValue { StateMachineParameter = a.StateMachineParameter, Value = a.Value }).ToList();
-            newParams.First(a => a.StateMachineParameter.Name == lowerString).Value = Convert.ToString(LB);
-            newParams.First(a => a.StateMachineParameter.Name == upperString).Value = Convert.ToString(UB);
-            newParams.First(a => a.StateMachineParameter.Name == targetString).Value = Convert.ToString(T);
+            List<SMParameterValue> newParams = updateSMParams();
             return newParams;
         }
 
-        private List<SMParameterValue> jumpTarget(int exptID, int defID, RatControlDataContext db)
+        private void jumpTarget(int exptID, int defID, RatControlDataContext db)
         {
             int? FirstRCEID = null;
             int? LastRCEID = null;
@@ -464,12 +448,7 @@ namespace RatControlOp.Scripts
                     // previous target is very close to the lower edge 
                     T = bound1 + randomTargetLoc;
                 }
-            }
-
-            List<SMParameterValue> newParams;
-            newParams = SMParameters.Select(a => new SMParameterValue { StateMachineParameter = a.StateMachineParameter, Value = a.Value }).ToList();
-            newParams.First(a => a.StateMachineParameter.Name == targetString).Value = Convert.ToString(T);
-            return newParams;
+            }       
         }
 
     }
